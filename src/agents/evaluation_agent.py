@@ -6,6 +6,7 @@ import numpy as np
 
 from src.agents.base import AgentResult, BaseAgent
 from src.config import AppConfig
+from src.utils.explanations import genai_rationale
 from src.utils.optional import optional_import
 
 
@@ -59,9 +60,46 @@ class EvaluationAgent(BaseAgent):
     def run(self, payload: Dict[str, Any]) -> AgentResult:
         labels = payload.get("labels")
         scores = payload.get("scores")
+        ids = payload.get("ids")
+        records = payload.get("records")
+        amount_stats = payload.get("amount_stats")
 
         if labels is None or any(label is None for label in labels):
-            return AgentResult(name=self.name, outputs={"metrics": None, "note": "Labels not available"})
+            outputs: Dict[str, Any] = {"metrics": None, "note": "Labels not available"}
+            if ids and records and scores:
+                outputs["claim_evaluations"] = self._claim_rationales(ids, records, scores, amount_stats)
+            return AgentResult(name=self.name, outputs=outputs)
 
         metrics = self._metrics(labels, scores)
-        return AgentResult(name=self.name, outputs={"metrics": metrics})
+        outputs: Dict[str, Any] = {"metrics": metrics}
+        if ids and records and scores:
+            outputs["claim_evaluations"] = self._claim_rationales(ids, records, scores, amount_stats)
+        return AgentResult(name=self.name, outputs=outputs)
+
+    def _claim_rationales(
+        self,
+        ids: List[str],
+        records: List[Dict[str, Any]],
+        scores: List[float],
+        amount_stats: Any,
+    ) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
+        for claim_id, record, score in zip(ids, records, scores):
+            genai = genai_rationale(
+                record=record,
+                score=float(score),
+                threshold=self.config.model.fraud_threshold,
+                stats=amount_stats,
+                disclaimer=self.config.agents.genai_disclaimer,
+            )
+            results.append({
+                "claim_id": claim_id,
+                "score": float(score),
+                "genai_rationale": genai["summary"],
+                "decline_risk_reasons": genai["decline_risk_reasons"],
+                "amount_rationale": genai["amount_rationale"],
+                "decision_support": genai["decision_support"],
+                "genai_disclaimer": genai["disclaimer"],
+                "genai_mode": genai["genai_mode"],
+            })
+        return results

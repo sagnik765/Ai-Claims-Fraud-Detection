@@ -44,6 +44,9 @@ class AgentConfig:
         "salvage",
         "total loss",
     ])
+    genai_disclaimer: str = (
+        "Model-generated rationale for investigator review only; not an automated coverage decision."
+    )
 
 
 @dataclass

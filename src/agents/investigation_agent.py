@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 from src.agents.base import AgentResult, BaseAgent
 from src.config import AppConfig
+from src.utils.explanations import genai_rationale
 
 
 class InvestigationAgent(BaseAgent):
@@ -48,15 +49,29 @@ class InvestigationAgent(BaseAgent):
         ids = payload["ids"]
         records = payload["records"]
         scores = payload["scores"]
+        amount_stats = payload.get("amount_stats")
         results = []
 
         for claim_id, record, score in zip(ids, records, scores):
             flags = self._build_flags(record, float(score))
+            genai = genai_rationale(
+                record=record,
+                score=float(score),
+                threshold=self.config.model.fraud_threshold,
+                stats=amount_stats,
+                disclaimer=self.config.agents.genai_disclaimer,
+            )
             results.append({
                 "claim_id": claim_id,
                 "score": float(score),
                 "flags": flags,
                 "recommended_actions": self._recommended_actions(flags),
+                "genai_rationale": genai["summary"],
+                "decline_risk_reasons": genai["decline_risk_reasons"],
+                "amount_rationale": genai["amount_rationale"],
+                "decision_support": genai["decision_support"],
+                "genai_disclaimer": genai["disclaimer"],
+                "genai_mode": genai["genai_mode"],
             })
 
         return AgentResult(name=self.name, outputs={"investigations": results})

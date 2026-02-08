@@ -8,6 +8,7 @@ from src.agents.investigation_agent import InvestigationAgent
 from src.agents.subrogation_agent import SubrogationSalvageAgent
 from src.config import AppConfig
 from src.models.multimodal import MultimodalFraudModel
+from src.utils.explanations import compute_amount_stats
 
 
 class FraudOrchestrator:
@@ -29,6 +30,7 @@ class FraudOrchestrator:
 
     def run(self, mode: str, data_path: str) -> Dict[str, Any]:
         data_payload = self.data_agent.run({"data_path": data_path}).outputs
+        amount_stats = compute_amount_stats(data_payload["records"])
 
         if mode == "train":
             labels = [label for label in data_payload["labels"] if label is not None]
@@ -50,12 +52,16 @@ class FraudOrchestrator:
         eval_result = self.eval_agent.run({
             "labels": data_payload["labels"],
             "scores": scores.tolist(),
+            "ids": data_payload["ids"],
+            "records": data_payload["records"],
+            "amount_stats": amount_stats,
         }).outputs
 
         investigation_result = self.investigation_agent.run({
             "ids": data_payload["ids"],
             "records": data_payload["records"],
             "scores": scores.tolist(),
+            "amount_stats": amount_stats,
         }).outputs
 
         subrogation_result = self.subrogation_agent.run({
