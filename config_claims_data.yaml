@@ -1,0 +1,24 @@
+data:
+  text_fields: []
+  image_field: image_paths
+  label_field: claim_status
+model:
+  text_vectorizer: tfidf
+  max_text_features: 2000
+  image_feature_dim: 64
+  structured_hash_features: 512
+  model_type: random_forest
+  fraud_threshold: 0.6
+agents:
+  investigation_rules:
+    - multiple_claims_same_asset
+    - late_reported_loss
+    - policy_recently_bound
+  subrogation_keywords:
+    - rear-ended
+    - hit and run
+    - other driver
+    - at fault
+    - third party
+    - salvage
+    - total loss
