@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from src.agents.base import AgentResult, BaseAgent
 from src.config import AppConfig
 from src.utils.explanations import genai_rationale
+from src.utils.openai_rationale import OpenAIRationaleGenerator
 
 
 class InvestigationAgent(BaseAgent):
@@ -12,6 +13,20 @@ class InvestigationAgent(BaseAgent):
 
     def __init__(self, config: AppConfig):
         self.config = config
+        self._openai = OpenAIRationaleGenerator(config.agents.genai_model)
+
+    def _eligible_for_llm(self, score: float, remaining: int) -> bool:
+        if not self.config.agents.genai_enabled:
+            return False
+        if self.config.agents.genai_provider != "openai":
+            return False
+        if not self._openai.available():
+            return False
+        if remaining <= 0:
+            return False
+        if self.config.agents.genai_scope == "all":
+            return True
+        return score >= self.config.agents.genai_min_score
 
     def _build_flags(self, record: Dict[str, Any], score: float) -> List[str]:
         flags: List[str] = []
@@ -51,6 +66,7 @@ class InvestigationAgent(BaseAgent):
         scores = payload["scores"]
         amount_stats = payload.get("amount_stats")
         results = []
+        remaining = int(self.config.agents.genai_max_claims)
 
         for claim_id, record, score in zip(ids, records, scores):
             flags = self._build_flags(record, float(score))
@@ -61,6 +77,18 @@ class InvestigationAgent(BaseAgent):
                 stats=amount_stats,
                 disclaimer=self.config.agents.genai_disclaimer,
             )
+            if self._eligible_for_llm(float(score), remaining):
+                summary = self._openai.summarize({
+                    "score": float(score),
+                    "threshold": self.config.model.fraud_threshold,
+                    "decline_risk_reasons": genai["decline_risk_reasons"],
+                    "amount_rationale": genai["amount_rationale"],
+                    "decision_support": genai["decision_support"],
+                })
+                if summary:
+                    genai["summary"] = summary
+                    genai["genai_mode"] = "openai"
+                    remaining -= 1
             results.append({
                 "claim_id": claim_id,
                 "score": float(score),

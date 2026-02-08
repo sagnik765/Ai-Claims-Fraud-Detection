@@ -47,6 +47,12 @@ class AgentConfig:
     genai_disclaimer: str = (
         "Model-generated rationale for investigator review only; not an automated coverage decision."
     )
+    genai_enabled: bool = False
+    genai_provider: str = "openai"
+    genai_model: str = "gpt-5.2"
+    genai_max_claims: int = 50
+    genai_min_score: float = 0.6
+    genai_scope: str = "high_risk"  # high_risk or all
 
 
 @dataclass

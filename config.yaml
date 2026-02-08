@@ -25,3 +25,9 @@ agents:
     - third party
     - salvage
     - total loss
+  genai_enabled: false
+  genai_provider: openai
+  genai_model: gpt-5.2
+  genai_max_claims: 50
+  genai_min_score: 0.6
+  genai_scope: high_risk

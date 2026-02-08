@@ -32,6 +32,27 @@ python -m src.main --mode train --data \"/Users/sagnikroy/Downloads/Insurance cl
 python -m src.main --mode score --data \"/Users/sagnikroy/Downloads/Insurance claims data.csv\" --config config_claims_data.yaml --model-in artifacts/claims_model.pkl --prefer-spark
 ```
 
+## GenAI rationales (OpenAI)
+To generate OpenAI-backed rationales in the investigation and evaluation agents:
+
+1. Install the OpenAI client (already in `requirements.txt`)
+2. Set your API key:
+```bash
+export OPENAI_API_KEY="YOUR_KEY"
+```
+3. Enable GenAI in config:
+```yaml
+agents:
+  genai_enabled: true
+  genai_provider: openai
+  genai_model: gpt-5.2
+  genai_max_claims: 50
+  genai_min_score: 0.6
+  genai_scope: high_risk
+```
+
+If disabled or no key is set, the system falls back to template-based rationales.
+
 ## Project structure
 - `src/agents`: agent implementations
 - `src/models`: multimodal model
