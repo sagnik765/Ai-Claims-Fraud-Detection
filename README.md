@@ -22,16 +22,6 @@ python -m src.main --mode train --data data/sample/claims.jsonl --model-out arti
 python -m src.main --mode score --data data/sample/claims.jsonl --model-in artifacts/model.pkl
 ```
 
-## Using your dataset
-This repo supports arbitrary tabular claim datasets. The structured featurizer automatically encodes numeric and categorical columns, while text/image are optional.
-
-For the dataset located at `/Users/sagnikroy/Downloads/Insurance claims data.csv`, use the provided config:
-
-```bash
-python -m src.main --mode train --data \"/Users/sagnikroy/Downloads/Insurance claims data.csv\" --config config_claims_data.yaml --model-out artifacts/claims_model.pkl --prefer-spark
-python -m src.main --mode score --data \"/Users/sagnikroy/Downloads/Insurance claims data.csv\" --config config_claims_data.yaml --model-in artifacts/claims_model.pkl --prefer-spark
-```
-
 ## GenAI rationales (OpenAI)
 To generate OpenAI-backed rationales in the investigation and evaluation agents:
 
