@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: ai-claims-fraud-detection
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: FRAUD_CONFIG
+        sync: false
+      - key: FRAUD_BOOTSTRAP_DATA
+        value: data/sample/claims.jsonl

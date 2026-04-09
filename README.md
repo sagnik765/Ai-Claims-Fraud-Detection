@@ -43,6 +43,35 @@ agents:
 
 If disabled or no key is set, the system falls back to template-based rationales.
 
+## API (FastAPI)
+Run the API locally:
+
+```bash
+uvicorn src.api:app --host 0.0.0.0 --port 8000
+```
+
+Health check:
+```bash
+curl http://localhost:8000/health
+```
+
+Score records (POST JSON):
+```bash
+curl -X POST http://localhost:8000/score \
+  -H "Content-Type: application/json" \
+  -d '{"records": [{"claim_id": "C-1", "claim_description": "Rear-ended", "claim_amount": 4200, "policy_age_days": 180, "prior_claims_count": 0, "late_reported": 0, "multiple_parties": 1, "injury_reported": 0, "total_loss": 0, "is_fraud": 0}]}'
+```
+
+If you want the model to train on the incoming payload (labels required), set `"train_on_payload": true`.
+
+## Deploy for free (Render)
+This repo includes `render.yaml` for one-click deployment.
+
+1. Create a new **Web Service** on Render and connect this GitHub repo.
+2. Keep the **Free** plan selected.
+3. Set `OPENAI_API_KEY` if you want OpenAI-backed rationales.
+4. Deploy.
+
 ## Project structure
 - `src/agents`: agent implementations
 - `src/models`: multimodal model
