@@ -207,6 +207,7 @@ class MultimodalFraudModel:
         self.model_type = model_type
         self._model = None
         self._use_sklearn = False
+        self._is_trained = False
 
         sklearn, _ = optional_import("sklearn")
         if sklearn is not None:
@@ -239,6 +240,7 @@ class MultimodalFraudModel:
         if self._use_sklearn and self._model is not None:
             try:
                 self._model.fit(features, np.array(labels))
+                self._is_trained = True
                 return
             except Exception:
                 # Fallback to random forest if logreg fails in the environment
@@ -248,6 +250,7 @@ class MultimodalFraudModel:
                     self._model = RandomForestClassifier(n_estimators=200, random_state=42)
                     self.model_type = "random_forest"
                     self._model.fit(features, np.array(labels))
+                    self._is_trained = True
                     return
                 except Exception:
                     pass
@@ -257,8 +260,31 @@ class MultimodalFraudModel:
                 "rule": "fallback",
                 "weights": np.array([1.0] * features.shape[1], dtype=np.float32),
             }
+            self._use_sklearn = False
+
+    @staticmethod
+    def _baseline_scores(structured_records: List[Dict[str, Any]]) -> np.ndarray:
+        """Return an explainable cold-start score when no trained artifact is loaded."""
+        scores = []
+        for record in structured_records:
+            amount = min(max(float(record.get("claim_amount") or 0), 0) / 25000.0, 1.0)
+            prior_claims = min(max(float(record.get("prior_claims_count") or 0), 0) / 3.0, 1.0)
+            policy_age = max(float(record.get("policy_age_days") or 0), 0)
+            new_policy = 1.0 if 0 < policy_age < 30 else 0.0
+            late_reported = 1.0 if record.get("late_reported") else 0.0
+            total_loss = 1.0 if record.get("total_loss") else 0.0
+            score = 0.10 + (0.20 * amount) + (0.15 * prior_claims) + (0.15 * new_policy)
+            score += (0.25 * late_reported) + (0.15 * total_loss)
+            scores.append(min(max(score, 0.0), 1.0))
+        return np.asarray(scores, dtype=np.float32)
 
     def predict_proba(self, texts: List[str], image_paths: List[List[str]], structured_records: List[Dict[str, Any]]) -> np.ndarray:
+        is_trained = getattr(self, "_is_trained", False)
+        if not is_trained and self._use_sklearn and self._model is not None:
+            is_trained = hasattr(self._model, "classes_")
+        if not is_trained:
+            return self._baseline_scores(structured_records)
+
         features = self._build_features(texts, image_paths, structured_records, fit=False)
         if self._use_sklearn and self._model is not None:
             proba = self._model.predict_proba(features)

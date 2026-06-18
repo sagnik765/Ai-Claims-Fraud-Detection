@@ -1,86 +1,163 @@
-# P&C Fraud Detection - Agentic Multimodal System
+# Multimodal P&C Claims Risk Triage
 
-This project is a complete, runnable scaffold for detecting fraudulent claims in Property & Casualty insurance using multimodal data (text + images), big-data integration patterns, and an agentic AI workflow.
+**Decision-support prototype that combines structured claim data, narrative text, and image signals to prioritize insurance investigations.**
 
-## What is included
-- Multimodal model pipeline (text + image features)
-- Agentic workflow with investigation, evaluation, subrogation/salvage indication, and data integration agents
-- Big-data integration hooks (Spark optional) with local fallback
-- Sample dataset and schema
-- CLI and scripts to train and score
+The system demonstrates an end-to-end path from claim ingestion to fraud-risk scoring, investigation context, recovery indicators, and model evaluation. It is designed to support adjusters, not replace claim decisions.
 
-## Quick start
-1. Create a virtual environment
-2. Install dependencies
-3. Run the pipeline
+![Claims risk triage sample output](docs/screenshots/claims-triage.png)
+
+## Problem Statement
+
+Claims teams receive evidence in multiple formats: policy and loss fields, adjuster notes, claimant narratives, and images. Reviewing each source separately makes triage slower and can hide cross-modal inconsistencies.
+
+This project tests whether a single workflow can:
+
+- normalize heterogeneous claim inputs;
+- combine structured, text, and image features;
+- score fraud risk consistently;
+- produce an investigator-readable rationale;
+- identify possible subrogation or salvage paths; and
+- measure model quality without making autonomous claim decisions.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    SRC[Claim Systems and Media] --> INGEST[Data Integration]
+    INGEST --> STRUCT[Structured Features]
+    INGEST --> TEXT[TF-IDF Text Features]
+    INGEST --> IMAGE[Image Statistical Features]
+    STRUCT --> MODEL[Random Forest Risk Model]
+    TEXT --> MODEL
+    IMAGE --> MODEL
+    MODEL --> ORCH[Workflow Orchestrator]
+    ORCH --> INVEST[Investigation Context]
+    ORCH --> RECOVERY[Subrogation and Salvage Signals]
+    ORCH --> EVAL[Evaluation Metrics]
+    INVEST --> API[FastAPI or Batch Output]
+    RECOVERY --> API
+    EVAL --> API
+    API --> HUMAN[Adjuster Review]
+```
+
+## Workflow Components
+
+| Component | Responsibility |
+| --- | --- |
+| Data integration | Validates schema and assembles structured, narrative, and image inputs |
+| Multimodal model | Combines feature groups and returns a fraud probability |
+| Investigation | Converts model and rule signals into review context and next actions |
+| Evaluation | Reports classification performance and supports threshold review |
+| Recovery analysis | Flags third-party, subrogation, total-loss, and salvage language |
+
+The orchestration layer is implemented under `src/orchestrator.py`; component details are documented in [Architecture](docs/ARCHITECTURE.md) and [Workflow Components](docs/AGENTS.md).
+
+## Tech Stack
+
+- Python, Pandas, NumPy
+- Scikit-learn random forest and TF-IDF
+- Pillow-based image feature extraction
+- Optional PySpark ingestion path
+- FastAPI delivery layer
+- Pytest and Ruff in GitHub Actions
+- Optional language-model rationale adapter with deterministic fallback
+
+## Data Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Claim Source
+    participant D as Data Pipeline
+    participant M as Multimodal Model
+    participant W as Review Workflow
+    participant A as Adjuster
+
+    C->>D: Claim fields, notes, image paths
+    D->>D: Validate and normalize
+    D->>M: Feature matrix
+    M-->>W: Fraud probability and feature signals
+    W-->>A: Risk tier, rationale, recovery flags
+    A->>W: Human disposition and investigation outcome
+```
+
+## Repository Structure
+
+```text
+src/models/       Multimodal feature extraction and model pipeline
+src/pipelines/    Local and optional distributed ingestion
+src/agents/       Investigation, evaluation, integration, and recovery components
+src/utils/        Text processing and explanation adapters
+scripts/          Training, scoring, and synthetic-image utilities
+docs/             Architecture and schema documentation
+tests/            Pipeline regression tests
+```
+
+## Quick Start
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m src.main --mode train --data data/sample/claims.jsonl --model-out artifacts/model.pkl
-python -m src.main --mode score --data data/sample/claims.jsonl --model-in artifacts/model.pkl
 ```
 
-## GenAI rationales (OpenAI)
-To generate OpenAI-backed rationales in the investigation and evaluation agents:
-
-1. Install the OpenAI client (already in `requirements.txt`)
-2. Set your API key:
-```bash
-export OPENAI_API_KEY="YOUR_KEY"
-```
-3. Enable GenAI in config:
-```yaml
-agents:
-  genai_enabled: true
-  genai_provider: openai
-  genai_model: gpt-5.2
-  genai_max_claims: 50
-  genai_min_score: 0.6
-  genai_scope: high_risk
-```
-
-If disabled or no key is set, the system falls back to template-based rationales.
-
-## API (FastAPI)
-Run the API locally:
+Train and score the sample data:
 
 ```bash
-uvicorn src.api:app --host 0.0.0.0 --port 8000
+python -m src.main --mode train \
+  --data data/sample/claims.jsonl \
+  --model-out artifacts/model.pkl
+
+python -m src.main --mode score \
+  --data data/sample/claims.jsonl \
+  --model-in artifacts/model.pkl
 ```
 
-Health check:
+Run the API:
+
 ```bash
-curl http://localhost:8000/health
+uvicorn src.api:app --host 127.0.0.1 --port 8000
 ```
 
-Score records (POST JSON):
+API documentation is available at `http://127.0.0.1:8000/docs`.
+
+## Testing
+
 ```bash
-curl -X POST http://localhost:8000/score \
-  -H "Content-Type: application/json" \
-  -d '{"records": [{"claim_id": "C-1", "claim_description": "Rear-ended", "claim_amount": 4200, "policy_age_days": 180, "prior_claims_count": 0, "late_reported": 0, "multiple_parties": 1, "injury_reported": 0, "total_loss": 0, "is_fraud": 0}]}'
+pytest -q
+ruff check .
 ```
 
-If you want the model to train on the incoming payload (labels required), set `"train_on_payload": true`.
+The regression suite validates ingestion, feature assembly, training, scoring, workflow output, and deterministic fallbacks.
 
-## Deploy for free (Render)
-This repo includes `render.yaml` for one-click deployment.
+## Configuration
 
-1. Create a new **Web Service** on Render and connect this GitHub repo.
-2. Keep the **Free** plan selected.
-3. Set `OPENAI_API_KEY` if you want OpenAI-backed rationales.
-4. Deploy.
+`config.yaml` controls fields, model parameters, fraud threshold, investigation rules, and optional rationale generation. Keep external rationale generation disabled when no approved provider and data-governance path exists.
 
-## Project structure
-- `src/agents`: agent implementations
-- `src/models`: multimodal model
-- `src/pipelines`: data integration
-- `src/utils`: utilities and helpers
-- `data/sample`: sample claims data
-- `docs`: architecture and schema
-- `scripts`: convenience scripts
+## Security and Responsible Use
 
-## Notes
-- This is a baseline scaffold built to be extended with your data lake, image stores, and model infrastructure.
-- The code runs without Spark or deep learning libraries, but will use them if installed.
+- No production claim or policyholder data belongs in this repository.
+- External rationale providers must receive de-identified, policy-approved inputs only.
+- Model output is a prioritization signal, not proof of fraud.
+- Final claim action requires human review, documented evidence, and an appeal path.
+- Thresholds should be evaluated for false positives and subgroup impact before operational use.
+- Secrets are loaded from environment variables and are never required for the deterministic path.
+
+## Current Limitations
+
+- The included model and data are a baseline demonstration, not carrier-validated production assets.
+- Image features are statistical descriptors rather than learned vision embeddings.
+- No production model registry, drift monitor, feature store, or case-management integration is included.
+- Fraud labels can encode investigation bias; operational evaluation must account for label quality.
+
+## Future Improvements
+
+- Calibrated probability outputs and cost-sensitive threshold selection
+- Learned vision embeddings with image-quality checks
+- Drift monitoring and reviewer-feedback capture
+- Model registry and reproducible experiment tracking
+- Fairness review across claim, product, geography, and customer segments
+- Integration contract for a claims case-management platform
+
+## Disclaimer
+
+This repository is a technical portfolio prototype. It must not be used to deny, delay, or investigate real claims without legal, compliance, actuarial, data-governance, and human-review controls.
